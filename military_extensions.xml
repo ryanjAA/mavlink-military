@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  MAVLink-M - optional extensions (proposed)
+  ============================================================================
+  This file describes two optional extensions to MAVLink-M that are NOT part of
+  the core dialect. They are provided for evaluation and may be adopted if a
+  program has the requirement. Read alongside the core dialect
+  (military.xml).
+
+  1. Close air support (CAS)
+       CAS_9LINE and TERMINAL_CONTROL, with their supporting enums, for a
+       platform participating in digitally-aided CAS (JP 3-09.3, JFIRE 9-line):
+       the 9-line brief and the terminal-attack-control handshake (Type 1/2/3).
+       The core dialect already covers laser designation via the PRF-code slot
+       on TARGET_COORD / FIRES; these messages add the CAS control procedure on
+       top of that, for platforms that need it.
+
+  2. Target-entity depth (MIL-STD-2525D)
+       A land target-entity enumeration for consumers that need finer entity
+       classification carried natively rather than derived from the MIL-STD-2525D
+       standard identity already carried in TRACK_IDENTITY. Adds no messages;
+       it is an optional entity field.
+
+  DISTRIBUTION A: descriptive intent / enumeration only. No weaponeering, fuze
+  timing, laser code values, or radar/EW configuration on the wire. Enum values
+  are provisional; joint machine-format codes are reconciled against the
+  controlled specs (MIL-STD-6017 / 6016, STANAG 5516) in a separate ICD.
+
+  MESSAGE IDs: the CAS messages use 54060-54061, inside the 54060-54089 block the
+  core dialect reserves for growth, so they slot in cleanly if this extension is
+  adopted. (These are message IDs; they are a different namespace from the core
+  dialect's MAV_CMD command entries at 54090-54093, which are not message IDs.)
+  All IDs remain placeholders pending the maintainers' allocation.
+
+  FIELD CONVENTIONS (same as the core dialect):
+    - Enums reserve value 0 for UNKNOWN / UNSPECIFIED / NONE.
+    - Numeric sentinels are out of range, never a legal value (lat/lon INT32_MAX;
+      headings/attitude 0xFFFF; altitude NaN).
+  ============================================================================
+-->
+<mavlink>
+  <!-- Optional extensions; assumes the core MAVLink-M dialect. -->
+  <include>military.xml</include>
+  <dialect>2</dialect>
+
+  <enums>
+
+    <!-- ================================================================ -->
+    <!-- Close air support - supporting enumerations                      -->
+    <!-- ================================================================ -->
+
+<enum name="MAVLINK_M_TAC_TYPE">
+      <description>
+        Type of terminal attack control, a defined construct in JP 3-09.3 (Close
+        Air Support). The three types are distinguished by what the terminal
+        controller (JTAC/JFO) can visually acquire before granting clearance;
+        the framework was written for MANNED/remotely-piloted CAS AIRCRAFT, which
+        is why the definitions reference the attacking aircraft. APPLICABILITY
+        NOTE: for autonomous UAS or loitering-munition engagements this
+        aircraft-centric model may not map cleanly, and the man-in-the-loop
+        consent handshake in the core dialect (LOITER_MUNITION_CONTROL /
+        MAVLINK_M_LM_CONSENT_STATE) may be the more appropriate control construct.
+        A reviewer seeing both should treat CAS TAC types as governing manned/RPA
+        CAS runs and the LOITER_MUNITION_CONTROL consent state as governing loitering-munition
+        strikes; which one applies depends on the platform and mission.
+      </description>
+      <entry value="0" name="MAVLINK_M_TAC_TYPE_NONE">  <description>Not under terminal attack control.</description></entry>
+      <entry value="1" name="MAVLINK_M_TAC_TYPE_1">     <description>Type 1: controller must visually acquire BOTH the attacking aircraft and the target before clearance (highest positive control). Aircraft-specific per JP 3-09.3.</description></entry>
+      <entry value="2" name="MAVLINK_M_TAC_TYPE_2">     <description>Type 2: controller clears an individual attack without visually acquiring the aircraft and/or target at release (e.g. night, weather, standoff).</description></entry>
+      <entry value="3" name="MAVLINK_M_TAC_TYPE_3">     <description>Type 3: controller grants clearance for multiple attacks within a defined engagement/period under stated restrictions, without individual-pass control.</description></entry>
+    </enum>
+
+<enum name="MAVLINK_M_CAS_CLEARANCE">
+      <description>CAS clearance / abort handshake verbs (JP 3-09.3). Human-authority instruments.</description>
+      <entry value="0" name="MAVLINK_M_CAS_NONE">      <description>No clearance state.</description></entry>
+      <entry value="1" name="MAVLINK_M_CAS_CONTINUE">  <description>Continue.</description></entry>
+      <entry value="2" name="MAVLINK_M_CAS_CLEARED_HOT"><description>Cleared hot.</description></entry>
+      <entry value="3" name="MAVLINK_M_CAS_ABORT">     <description>Abort.</description></entry>
+      <entry value="4" name="MAVLINK_M_CAS_CEASE_FIRE"><description>Cease fire.</description></entry>
+    </enum>
+
+<enum name="MAVLINK_M_AIRCRAFT_CALL">
+      <description>Attacking-aircraft status calls (JFIRE 9-line flow).</description>
+      <entry value="0" name="MAVLINK_M_ACFT_CALL_NONE"><description>No call.</description></entry>
+      <entry value="1" name="MAVLINK_M_ACFT_CALL_IN">  <description>IN (commencing attack run).</description></entry>
+      <entry value="2" name="MAVLINK_M_ACFT_CALL_OFF"> <description>OFF (off target).</description></entry>
+      <entry value="3" name="MAVLINK_M_ACFT_CALL_VISUAL"><description>VISUAL (sees friendlies).</description></entry>
+      <entry value="4" name="MAVLINK_M_ACFT_CALL_TALLY"><description>TALLY (sees target).</description></entry>
+    </enum>
+
+<enum name="MAVLINK_M_MARK_TYPE">
+      <description>Type of target mark / terminal guidance (9-line line 7).</description>
+      <entry value="0" name="MAVLINK_M_MARK_NONE">    <description>No mark.</description></entry>
+      <entry value="1" name="MAVLINK_M_MARK_WP">      <description>White phosphorus mark.</description></entry>
+      <entry value="2" name="MAVLINK_M_MARK_ILLUM">   <description>Illumination mark.</description></entry>
+      <entry value="3" name="MAVLINK_M_MARK_LASER">   <description>Laser designation (code carried as slot, not value).</description></entry>
+      <entry value="4" name="MAVLINK_M_MARK_IR">      <description>IR pointer.</description></entry>
+    </enum>
+
+<enum name="MAVLINK_M_ORDNANCE_DELIVERY">
+      <description>Bomb-on-coordinate vs bomb-on-target delivery intent.</description>
+      <entry value="0" name="MAVLINK_M_DELIVERY_UNSPECIFIED"><description>Unspecified.</description></entry>
+      <entry value="1" name="MAVLINK_M_DELIVERY_BOC">        <description>Bomb on coordinate.</description></entry>
+      <entry value="2" name="MAVLINK_M_DELIVERY_BOT">        <description>Bomb on target.</description></entry>
+    </enum>
+
+    <!-- ================================================================ -->
+    <!-- Target-entity depth (MIL-STD-2525D land entity subset)           -->
+    <!-- ================================================================ -->
+
+<enum name="MAVLINK_M_TARGET_ENTITY_2525D">
+      <description>
+        Target entity class, representative subset of the MIL-STD-2525D
+        (Distribution A) land entity library. Note 2525D has NO separate "IFV"
+        entity - an IFV renders as ARMORED_FIGHTING_VEHICLE. Pin the 2525D version
+        to the target 6017 baseline for lossless round-trip.
+      </description>
+      <entry value="0"  name="MAVLINK_M_ENT_UNKNOWN">              <description>Unknown entity.</description></entry>
+      <entry value="1"  name="MAVLINK_M_ENT_TANK_LIGHT">           <description>Tank (light).</description></entry>
+      <entry value="2"  name="MAVLINK_M_ENT_TANK_MEDIUM">          <description>Tank (medium).</description></entry>
+      <entry value="3"  name="MAVLINK_M_ENT_TANK_HEAVY">           <description>Tank (heavy) - MBT maps here.</description></entry>
+      <entry value="4"  name="MAVLINK_M_ENT_ARMORED_FIGHTING_VEHICLE"><description>Armored fighting vehicle (IFV renders here).</description></entry>
+      <entry value="5"  name="MAVLINK_M_ENT_APC">                  <description>Armored personnel carrier.</description></entry>
+      <entry value="6"  name="MAVLINK_M_ENT_HOWITZER">             <description>Howitzer.</description></entry>
+      <entry value="7"  name="MAVLINK_M_ENT_MRL">                  <description>Multiple rocket launcher.</description></entry>
+      <entry value="8"  name="MAVLINK_M_ENT_MORTAR">               <description>Mortar.</description></entry>
+      <entry value="9"  name="MAVLINK_M_ENT_ADA_GUN">              <description>Air-defense gun (AAA).</description></entry>
+      <entry value="10" name="MAVLINK_M_ENT_ADA_MISSILE">          <description>Air-defense missile launcher (SAM; TLAR/TELAR).</description></entry>
+      <entry value="11" name="MAVLINK_M_ENT_ANTITANK">             <description>Antitank gun / missile launcher.</description></entry>
+      <entry value="12" name="MAVLINK_M_ENT_SSM_LAUNCHER">         <description>Surface-to-surface missile launcher.</description></entry>
+      <entry value="13" name="MAVLINK_M_ENT_RADAR">                <description>Radar (sensor entity).</description></entry>
+      <entry value="14" name="MAVLINK_M_ENT_C2_NODE">              <description>Command-and-control node / command post.</description></entry>
+      <entry value="15" name="MAVLINK_M_ENT_ENGINEER_VEHICLE">     <description>Engineer vehicle.</description></entry>
+      <entry value="16" name="MAVLINK_M_ENT_POL">                  <description>Petroleum/oil/lubricant site (logistics).</description></entry>
+      <entry value="17" name="MAVLINK_M_ENT_AMMO">                 <description>Ammunition site (logistics).</description></entry>
+      <entry value="18" name="MAVLINK_M_ENT_BRIDGE">               <description>Bridge.</description></entry>
+      <entry value="19" name="MAVLINK_M_ENT_ROUTE">                <description>Road / route.</description></entry>
+      <entry value="20" name="MAVLINK_M_ENT_INFANTRY">             <description>Infantry unit.</description></entry>
+      <entry value="21" name="MAVLINK_M_ENT_FIELD_ARTILLERY">      <description>Field artillery unit.</description></entry>
+      <entry value="22" name="MAVLINK_M_ENT_EW_MI">                <description>Electronic warfare / military intelligence unit.</description></entry>
+      <entry value="23" name="MAVLINK_M_ENT_LAND_MINE_IED">        <description>Land mine / IED.</description></entry>
+    </enum>
+
+  </enums>
+
+  <messages>
+
+    <!-- ================================================================ -->
+    <!-- Close air support - messages                                     -->
+    <!-- ================================================================ -->
+
+<message id="54060" name="CAS_9LINE">
+      <description>
+        Close air support 9-line brief (JP 3-09.3 / JFIRE). Descriptive tasking
+        data classes for a CAS attack. Laser code is carried as a slot, never a
+        value. Danger close is a flag; RED tables are never embedded.
+      </description>
+      <field type="uint64_t" name="time_usec"       units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="int32_t"  name="ip_lat"          units="degE7">Line 1: initial point / battle position latitude, WGS84.</field>
+      <field type="int32_t"  name="ip_lon"          units="degE7">Line 1: initial point / battle position longitude, WGS84.</field>
+      <field type="uint16_t" name="heading_deg"     units="deg" >Line 2: heading (IP to target).</field>
+      <field type="int16_t"  name="offset_deg"      units="deg" >Line 2: offset (L/R); sign indicates side.</field>
+      <field type="uint32_t" name="distance_m"      units="m"   >Line 3: distance IP to target.</field>
+      <field type="int32_t"  name="tgt_elev_m"      units="m"   >Line 4: target elevation, MSL.</field>
+      <field type="int32_t"  name="tgt_lat"         units="degE7">Line 6: target latitude, WGS84.</field>
+      <field type="int32_t"  name="tgt_lon"         units="degE7">Line 6: target longitude, WGS84.</field>
+      <field type="uint8_t"  name="mark_type"       enum="MAVLINK_M_MARK_TYPE">Line 7: type of mark / terminal guidance.</field>
+      <field type="uint8_t"  name="laser_code_slot"            >Line 7: 1 = a laser code is assigned (slot); 0 = none. NEVER the numeric code.</field>
+      <field type="int32_t"  name="friendlies_lat"  units="degE7">Line 8: friendlies latitude, WGS84.</field>
+      <field type="int32_t"  name="friendlies_lon"  units="degE7">Line 8: friendlies longitude, WGS84.</field>
+      <field type="uint16_t" name="egress_deg"      units="deg" >Line 9: egress heading.</field>
+      <field type="uint16_t" name="final_attack_heading_deg" units="deg">Remarks: final attack heading (FAH). 0xFFFF if unspecified.</field>
+      <field type="uint8_t"  name="danger_close"               >Remarks: 1 = danger close / troops in contact; 0 = not.</field>
+      <field type="uint8_t"  name="delivery"        enum="MAVLINK_M_ORDNANCE_DELIVERY">Bomb-on-coordinate vs bomb-on-target.</field>
+    </message>
+
+<message id="54061" name="TERMINAL_CONTROL">
+      <description>
+        Terminal-attack-control handshake (JP 3-09.3). Carries the control type,
+        the human clearance/abort verb, and attacking-aircraft status calls. This
+        is a human-authority instrument: clearance verbs record a human decision
+        and must not be wired as an automated release path.
+      </description>
+      <field type="uint64_t" name="time_usec"    units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint16_t" name="sequence"               >Engagement sequence this handshake applies to.</field>
+      <field type="uint8_t"  name="tac_type"     enum="MAVLINK_M_TAC_TYPE">Type of terminal attack control (1/2/3).</field>
+      <field type="uint8_t"  name="clearance"    enum="MAVLINK_M_CAS_CLEARANCE">Clearance / abort verb (human authority).</field>
+      <field type="uint8_t"  name="aircraft_call" enum="MAVLINK_M_AIRCRAFT_CALL">Attacking-aircraft status call.</field>
+      <field type="uint8_t"  name="abort_authority_present"  >1 = a valid abort authority is established for this engagement; 0 = not.</field>
+    </message>
+
+  </messages>
+</mavlink>
